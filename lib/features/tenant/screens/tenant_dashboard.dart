@@ -4,6 +4,7 @@ import '../../auth/screens/login_screen.dart';
 import 'tenant_home.dart';
 import 'meal_screen.dart';
 import 'complaint_screen.dart';
+import 'profile_screen.dart'; // ✅ new import
 
 class TenantDashboard extends StatefulWidget {
   const TenantDashboard({super.key});
@@ -19,6 +20,7 @@ class _TenantDashboardState extends State<TenantDashboard> {
     TenantHome(),
     MealScreen(),
     TenantComplaintsScreen(),
+    ProfileScreen(), // ✅ new tab
   ];
 
   void logout() async {
@@ -26,55 +28,39 @@ class _TenantDashboardState extends State<TenantDashboard> {
     Navigator.pushAndRemoveUntil(
       context,
       MaterialPageRoute(builder: (_) => const LoginScreen()),
-      (route) => false, // ✅ clears entire navigation stack
+      (route) => false,
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Tenant Dashboard"),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: "Logout",
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (_) => AlertDialog(
-                  title: const Text("Logout"),
-                  content: const Text("Are you sure you want to logout?"),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text("Cancel"),
-                    ),
-                    ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        logout();
-                      },
-                      child: const Text("Logout"),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-        ],
-      ),
       body: screens[index],
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         currentIndex: index,
         showUnselectedLabels: true,
         selectedItemColor: const Color(0xFF6C5DD3),
+        selectedFontSize: 12,
+        unselectedFontSize: 11,
         onTap: (i) => setState(() => index = i),
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-          BottomNavigationBarItem(icon: Icon(Icons.restaurant_menu), label: "Meals"),
-          BottomNavigationBarItem(icon: Icon(Icons.build), label: "Complaints"),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.home),
+            label: "Home",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.restaurant_menu),
+            label: "Meals",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.build),
+            label: "Complaints",
+          ),
+          BottomNavigationBarItem( // ✅ new tab
+            icon: Icon(Icons.person),
+            label: "Profile",
+          ),
         ],
       ),
     );
