@@ -1,49 +1,76 @@
-class OwnerDashboard extends StatelessWidget {
-  const OwnerDashboard({super.key});
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/material.dart';
+import 'core/theme/app_theme.dart';
+import 'core/services/session_service.dart';
+import 'features/auth/screens/login_screen.dart';
+import 'features/owner/screens/owner_dashboard.dart';
+import 'features/tenant/screens/tenant_dashboard.dart'; // ✅ added
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Owner Dashboard"),
-      ),
-      body: GridView.count(
-        crossAxisCount: 2,
-        padding: const EdgeInsets.all(16),
-        children: [
-          _tile(context, "Meal Count", Icons.fastfood,
-              "/mealCount"),
-
-          _tile(context, "Analytics", Icons.bar_chart,
-              "/analytics"),
-
-          _tile(context, "Rooms", Icons.meeting_room,
-              "/rooms"),
-
-          _tile(context, "Tenants", Icons.people,
-              "/tenants"),
-
-          _tile(context, "Complaints", Icons.report,
-              "/complaints"),
-        ],
-      ),
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'PG Management',
+      theme: AppTheme.lightTheme,
+      home: const SplashScreen(),
     );
   }
+}
 
-  Widget _tile(
-      BuildContext context, String title, IconData icon, String route) {
-    return GestureDetector(
-      onTap: () => Navigator.pushNamed(context, route),
-      child: Card(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 40),
-            const SizedBox(height: 10),
-            Text(title),
-          ],
-        ),
-      ),
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> {
+  final session = SessionService();
+
+  @override
+  void initState() {
+    super.initState();
+    checkLogin();
+  }
+
+  void checkLogin() async {
+    await Future.delayed(const Duration(seconds: 2));
+
+    final user = await session.getUser();
+
+    if (user == null) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
+    } else {
+      if (user['role'] == "owner") {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const OwnerDashboard()), // ✅ const added
+        );
+      } else if (user['role'] == "tenant") {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const TenantDashboard()), // ✅ tenant route added
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(child: Text("PG Manager")),
     );
   }
 }
