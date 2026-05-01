@@ -1,65 +1,82 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:crypto/crypto.dart';
-import 'dart:convert';
+import 'package:firebase_core/firebase_core.dart';
 
 class AuthService {
-  final _db = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  /// 🔐 HASH PASSWORD using SHA-256
-  String _hashPassword(String password) {
-    final bytes = utf8.encode(password);
-    final digest = sha256.convert(bytes);
-    return digest.toString();
+  // 🔑 Standard Login
+  Future<User?> login(String email, String password) async {
+    try {
+      UserCredential result = await _auth.signInWithEmailAndPassword(
+          email: email.trim(), password: password.trim());
+      return result.user;
+    } catch (e) {
+      throw Exception(e.toString());
+    }
   }
 
-  /// REGISTER
-  Future<String?> register({
+  // 🏠 Owner creates Tenant (Using Secondary App to keep Owner logged in)
+  Future<void> createTenantAccount({
+    required String email,
+    required String tempPassword,
     required String name,
-    required String phone,
-    required String password,
-    required String role,
+    required String roomNumber,
+    required String bedNumber,
   }) async {
     try {
-      final existing = await _db
-          .collection('users')
-          .where('phone', isEqualTo: phone)
-          .get();
+      // Create a secondary app to avoid logging out the current Owner
+      FirebaseApp secondaryApp = await Firebase.initializeApp(
+        name: 'SecondaryApp',
+        options: Firebase.app().options,
+      );
 
-      if (existing.docs.isNotEmpty) {
-        return "User already exists";
+      UserCredential result = await FirebaseAuth.instanceFor(app: secondaryApp)
+          .createUserWithEmailAndPassword(
+        email: email.trim(),
+        password: tempPassword,
+      );
+
+      if (result.user != null) {
+        await _firestore.collection('users').doc(result.user!.uid).set({
+          'uid': result.user!.uid,
+          'name': name.trim(),
+          'email': email.trim(),
+          'role': 'tenant',
+          'roomNumber': roomNumber.trim(),
+          'bedNumber': bedNumber.trim(),
+          'profileCompleted': false, // Force setup on first login
+          'createdAt': FieldValue.serverTimestamp(),
+        });
       }
-
-      await _db.collection('users').add({
-        "name": name,
-        "phone": phone,
-        "password": _hashPassword(password), // 🔐 store hashed
-        "role": role,
-        "createdAt": Timestamp.now(),
-      });
-
-      return null;
+      await secondaryApp.delete();
     } catch (e) {
-      return e.toString();
+      throw Exception(e.toString());
     }
   }
 
-  /// LOGIN
-  Future<Map<String, dynamic>?> login({
-    required String phone,
-    required String password,
+  // 📝 Tenant Completes Profile (First Login)
+  Future<void> completeTenantProfile({
+    required String newPassword,
   }) async {
     try {
-      final result = await _db
-          .collection('users')
-          .where('phone', isEqualTo: phone)
-          .where('password', isEqualTo: _hashPassword(password)) // 🔐 compare hashed
-          .get();
-
-      if (result.docs.isEmpty) return null;
-
-      return result.docs.first.data();
+      User? user = _auth.currentUser;
+      if (user != null) {
+        await user.updatePassword(newPassword.trim());
+        await _firestore.collection('users').doc(user.uid).update({
+          'profileCompleted': true,
+        });
+      }
     } catch (e) {
-      return null;
+      throw Exception(e.toString());
     }
   }
+
+  // 👤 Fetch User Data
+  Future<DocumentSnapshot> getUserData(String uid) async {
+    return await _firestore.collection('users').doc(uid).get();
+  }
+
+  Future<void> signOut() async => await _auth.signOut();
 }

@@ -1,10 +1,17 @@
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+// Theme & Core
 import 'core/theme/app_theme.dart';
-import 'core/services/session_service.dart';
+import 'core/services/auth_service.dart';
+
+// Screens
 import 'features/auth/screens/login_screen.dart';
+import 'features/auth/screens/complete_profile_screen.dart';
+import 'features/tenant/screens/tenant_dashboard.dart';
 import 'features/owner/screens/owner_dashboard.dart';
-import 'features/tenant/screens/tenant_dashboard.dart'; // ✅ added
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,58 +26,69 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'PG Management',
+      title: 'PG Management App',
       theme: AppTheme.lightTheme,
-      home: const SplashScreen(),
+      // The AuthWrapper determines the landing page dynamically
+      home: const AuthWrapper(),
     );
   }
 }
 
-class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
-
-  @override
-  State<SplashScreen> createState() => _SplashScreenState();
-}
-
-class _SplashScreenState extends State<SplashScreen> {
-  final session = SessionService();
-
-  @override
-  void initState() {
-    super.initState();
-    checkLogin();
-  }
-
-  void checkLogin() async {
-    await Future.delayed(const Duration(seconds: 2));
-
-    final user = await session.getUser();
-
-    if (user == null) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-      );
-    } else {
-      if (user['role'] == "owner") {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const OwnerDashboard()), // ✅ const added
-        );
-      } else if (user['role'] == "tenant") {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const TenantDashboard()), // ✅ tenant route added
-        );
-      }
-    }
-  }
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: Text("PG Manager")),
+    final AuthService authService = AuthService();
+
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        // 1. Check if Firebase is still loading the auth state
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        // 2. If user is NOT logged in, send to Login Screen
+        if (!snapshot.hasData) {
+          return const LoginScreen();
+        }
+
+        // 3. If user IS logged in, check their role and profile status in Firestore
+        return FutureBuilder<DocumentSnapshot>(
+          future: authService.getUserData(snapshot.data!.uid),
+          builder: (context, userSnapshot) {
+            if (userSnapshot.connectionState == ConnectionState.waiting) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+
+            if (userSnapshot.hasData && userSnapshot.data!.exists) {
+              final data = userSnapshot.data!;
+              final String role = data.get('role') ?? 'tenant';
+              final bool isProfileComplete = data.get('profileCompleted') ?? false;
+
+              // Logic for Tenant: If owner created account but tenant hasn't finished setup
+              if (role == 'tenant') {
+                return isProfileComplete 
+                    ? const TenantDashboard() 
+                    : const CompleteProfileScreen();
+              }
+
+              // Logic for Owner
+              if (role == 'owner') {
+                return const OwnerDashboard();
+              }
+            }
+
+            // Fallback if data is missing
+            return const LoginScreen();
+          },
+        );
+      },
     );
   }
 }
