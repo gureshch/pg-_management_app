@@ -32,6 +32,16 @@ class _MealsCountScreenState extends State<MealsCountScreen> {
     }
   }
 
+  /// Fetches the name of the tenant from the 'users' collection
+  Future<String> _getTenantName(String uid) async {
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+      return doc.data()?['name'] ?? "Unknown Tenant";
+    } catch (e) {
+      return "User ($uid)";
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -93,7 +103,6 @@ class _MealsCountScreenState extends State<MealsCountScreen> {
 
                 final docs = snapshot.data!.docs;
 
-                // Reset counters
                 int breakfastCount = 0;
                 int lunchCount = 0;
                 int dinnerCount = 0;
@@ -133,7 +142,7 @@ class _MealsCountScreenState extends State<MealsCountScreen> {
                           StatCard(
                             title: "Breakfast",
                             value: "$breakfastCount",
-                            icon: Icons.free_breakfast,
+                            icon: Icons.coffee,
                           ),
                           StatCard(
                             title: "Lunch",
@@ -164,13 +173,18 @@ class _MealsCountScreenState extends State<MealsCountScreen> {
                             child: Row(
                               children: [
                                 Expanded(
-                                  child: Text(
-                                    meal['userId'], // Ideally replace with Name from Users collection later
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
+                                  child: FutureBuilder<String>(
+                                    future: _getTenantName(meal['userId']),
+                                    builder: (context, nameSnapshot) {
+                                      return Text(
+                                        nameSnapshot.data ?? "Loading...",
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 14,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      );
+                                    },
                                   ),
                                 ),
                                 _mealDot("B", meal['breakfast']),
