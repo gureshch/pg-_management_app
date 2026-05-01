@@ -25,7 +25,7 @@ class _MealsCountScreenState extends State<MealsCountScreen> {
       context: context,
       initialDate: selectedDate,
       firstDate: DateTime(2024),
-      lastDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 30)),
     );
     if (picked != null) {
       setState(() => selectedDate = picked);
@@ -40,7 +40,6 @@ class _MealsCountScreenState extends State<MealsCountScreen> {
       ),
       body: Column(
         children: [
-
           /// 📅 Date Picker Bar
           GestureDetector(
             onTap: pickDate,
@@ -57,8 +56,7 @@ class _MealsCountScreenState extends State<MealsCountScreen> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.calendar_today,
-                          color: AppColors.primary, size: 18),
+                      const Icon(Icons.calendar_today, color: AppColors.primary, size: 18),
                       const SizedBox(width: 10),
                       Text(
                         displayDate,
@@ -75,15 +73,15 @@ class _MealsCountScreenState extends State<MealsCountScreen> {
             ),
           ),
 
-          /// 🔥 Live Stream from flat meal_logs collection
+          /// 🔥 Live Stream from meal_logs collection
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              stream: _firestore.getMealsByDate(formattedDate), // ✅ fixed query
+              stream: _firestore.getMealsByDate(formattedDate),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
-
+                
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return const Center(
                     child: Text(
@@ -95,16 +93,14 @@ class _MealsCountScreenState extends State<MealsCountScreen> {
 
                 final docs = snapshot.data!.docs;
 
-                /// ✅ Counts calculated client-side from stream
+                // Reset counters
                 int breakfastCount = 0;
                 int lunchCount = 0;
                 int dinnerCount = 0;
-
                 final List<Map<String, dynamic>> tenantMeals = [];
 
                 for (final doc in docs) {
                   final data = doc.data() as Map<String, dynamic>? ?? {};
-
                   final b = data['breakfast'] == true;
                   final l = data['lunch'] == true;
                   final d = data['dinner'] == true;
@@ -126,7 +122,6 @@ class _MealsCountScreenState extends State<MealsCountScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-
                       /// 📊 Summary Stat Cards
                       GridView.count(
                         crossAxisCount: 3,
@@ -153,43 +148,42 @@ class _MealsCountScreenState extends State<MealsCountScreen> {
                         ],
                       ),
 
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 25),
 
                       /// 👤 Per Tenant Breakdown
                       const Text(
                         "Tenant Breakdown",
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
-
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 12),
 
                       ...tenantMeals.map((meal) {
                         return GlassCard(
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  meal['userId'],
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 13,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    meal['userId'], // Ideally replace with Name from Users collection later
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 14,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                              ),
-                              _mealDot("B", meal['breakfast']),
-                              const SizedBox(width: 6),
-                              _mealDot("L", meal['lunch']),
-                              const SizedBox(width: 6),
-                              _mealDot("D", meal['dinner']),
-                            ],
+                                _mealDot("B", meal['breakfast']),
+                                const SizedBox(width: 8),
+                                _mealDot("L", meal['lunch']),
+                                const SizedBox(width: 8),
+                                _mealDot("D", meal['dinner']),
+                              ],
+                            ),
                           ),
                         );
                       }),
-
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 30),
                     ],
                   ),
                 );
@@ -203,13 +197,11 @@ class _MealsCountScreenState extends State<MealsCountScreen> {
 
   Widget _mealDot(String label, bool active) {
     return Container(
-      width: 32,
-      height: 32,
+      width: 35,
+      height: 35,
       decoration: BoxDecoration(
-        color: active
-            ? AppColors.success.withOpacity(0.15)
-            : Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(8),
+        color: active ? AppColors.success.withOpacity(0.15) : Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: active ? AppColors.success : Colors.grey.shade300,
         ),
@@ -218,7 +210,7 @@ class _MealsCountScreenState extends State<MealsCountScreen> {
       child: Text(
         label,
         style: TextStyle(
-          fontSize: 11,
+          fontSize: 12,
           fontWeight: FontWeight.bold,
           color: active ? AppColors.success : Colors.grey,
         ),

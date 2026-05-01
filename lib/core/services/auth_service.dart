@@ -6,7 +6,7 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // 🔑 Standard Login
+  // 🔑 Standard Login for both Owner and Tenant
   Future<User?> login(String email, String password) async {
     try {
       UserCredential result = await _auth.signInWithEmailAndPassword(
@@ -17,7 +17,8 @@ class AuthService {
     }
   }
 
-  // 🏠 Owner creates Tenant (Using Secondary App to keep Owner logged in)
+  // 🏠 Owner creates Tenant Account
+  // This uses a 'SecondaryApp' instance so the Owner stays logged in
   Future<void> createTenantAccount({
     required String email,
     required String tempPassword,
@@ -26,18 +27,20 @@ class AuthService {
     required String bedNumber,
   }) async {
     try {
-      // Create a secondary app to avoid logging out the current Owner
+      // 1. Initialize a temporary secondary app
       FirebaseApp secondaryApp = await Firebase.initializeApp(
-        name: 'SecondaryApp',
+        name: 'TenantCreationApp',
         options: Firebase.app().options,
       );
 
+      // 2. Create the Auth User using the secondary app instance
       UserCredential result = await FirebaseAuth.instanceFor(app: secondaryApp)
           .createUserWithEmailAndPassword(
         email: email.trim(),
-        password: tempPassword,
+        password: tempPassword.trim(),
       );
 
+      // 3. Store the Tenant details in the main Firestore 'users' collection
       if (result.user != null) {
         await _firestore.collection('users').doc(result.user!.uid).set({
           'uid': result.user!.uid,
@@ -46,37 +49,56 @@ class AuthService {
           'role': 'tenant',
           'roomNumber': roomNumber.trim(),
           'bedNumber': bedNumber.trim(),
-          'profileCompleted': false, // Force setup on first login
+          'profileCompleted': false, // This triggers the password reset/setup for tenant
           'createdAt': FieldValue.serverTimestamp(),
         });
       }
+
+      // 4. Clean up by deleting the secondary app instance
       await secondaryApp.delete();
+    } on FirebaseAuthException catch (e) {
+      throw Exception(e.message ?? "Failed to create tenant account");
     } catch (e) {
-      throw Exception(e.toString());
+      throw Exception("An unexpected error occurred: $e");
     }
   }
 
-  // 📝 Tenant Completes Profile (First Login)
+  // 📝 Tenant Completes Profile (Changes password on first login)
   Future<void> completeTenantProfile({
     required String newPassword,
   }) async {
     try {
       User? user = _auth.currentUser;
       if (user != null) {
+        // Update the password in Firebase Auth
         await user.updatePassword(newPassword.trim());
+        
+        // Update the flag in Firestore so they can access the dashboard next time
         await _firestore.collection('users').doc(user.uid).update({
           'profileCompleted': true,
         });
       }
     } catch (e) {
-      throw Exception(e.toString());
+      throw Exception("Profile completion failed: ${e.toString()}");
     }
   }
 
-  // 👤 Fetch User Data
+  // 👤 Fetch User Role and Metadata
   Future<DocumentSnapshot> getUserData(String uid) async {
     return await _firestore.collection('users').doc(uid).get();
   }
 
-  Future<void> signOut() async => await _auth.signOut();
+  // 📧 Forgot Password logic
+  Future<void> sendPasswordReset(String email) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email.trim());
+    } catch (e) {
+      throw Exception(e.toString());
+    }
+  }
+
+  // 🚪 Sign Out
+  Future<void> signOut() async {
+    await _auth.signOut();
+  }
 }

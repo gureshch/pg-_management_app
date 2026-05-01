@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/services/auth_service.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/primary_button.dart';
 
 class AddTenantScreen extends StatefulWidget {
@@ -10,45 +11,65 @@ class AddTenantScreen extends StatefulWidget {
 }
 
 class _AddTenantScreenState extends State<AddTenantScreen> {
-  final _name = TextEditingController();
-  final _email = TextEditingController();
-  final _pass = TextEditingController();
-  final _room = TextEditingController();
-  final _bed = TextEditingController();
-  final _authService = AuthService();
-  bool isLoading = false;
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _roomController = TextEditingController();
+  final _bedController = TextEditingController();
+  final _tempPassController = TextEditingController();
+  bool _isLoading = false;
 
-  void _submit() async {
-    setState(() => isLoading = true);
+  void _createTenant() async {
+    if (_emailController.text.isEmpty || _tempPassController.text.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please provide a valid email and 6-char password")));
+      return;
+    }
+
+    setState(() => _isLoading = true);
     try {
-      await _authService.createTenantAccount(
-        email: _email.text, tempPassword: _pass.text, 
-        name: _name.text, roomNumber: _room.text, bedNumber: _bed.text
+      await AuthService().createTenantAccount(
+        email: _emailController.text.trim(),
+        tempPassword: _tempPassController.text.trim(),
+        name: _nameController.text.trim(),
+        roomNumber: _roomController.text.trim(),
+        bedNumber: _bedController.text.trim(),
       );
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Tenant Registered!")));
-      Navigator.pop(context);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Tenant account created!")));
+        Navigator.pop(context);
+      }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
     } finally {
-      setState(() => isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Register Tenant")),
+      appBar: AppBar(title: const Text("New Tenant Registration")),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            TextField(controller: _name, decoration: const InputDecoration(labelText: "Full Name")),
-            TextField(controller: _email, decoration: const InputDecoration(labelText: "Email")),
-            TextField(controller: _pass, decoration: const InputDecoration(labelText: "Temp Password")),
-            TextField(controller: _room, decoration: const InputDecoration(labelText: "Room No.")),
-            TextField(controller: _bed, decoration: const InputDecoration(labelText: "Bed No.")),
-            const SizedBox(height: 30),
-            isLoading ? const CircularProgressIndicator() : PrimaryButton(text: "Create Account", onTap: _submit),
+            TextField(controller: _nameController, decoration: const InputDecoration(labelText: "Tenant Name")),
+            const SizedBox(height: 15),
+            TextField(controller: _emailController, decoration: const InputDecoration(labelText: "Tenant Email")),
+            const SizedBox(height: 15),
+            Row(
+              children: [
+                Expanded(child: TextField(controller: _roomController, decoration: const InputDecoration(labelText: "Room No"))),
+                const SizedBox(width: 15),
+                Expanded(child: TextField(controller: _bedController, decoration: const InputDecoration(labelText: "Bed No"))),
+              ],
+            ),
+            const SizedBox(height: 15),
+            TextField(controller: _tempPassController, decoration: const InputDecoration(labelText: "Temporary Password")),
+            const SizedBox(height: 40),
+            _isLoading 
+              ? const CircularProgressIndicator() 
+              : PrimaryButton(text: "Register Tenant", onTap: _createTenant),
           ],
         ),
       ),
