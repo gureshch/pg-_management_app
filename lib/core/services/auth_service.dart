@@ -1,104 +1,65 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
+import 'package:crypto/crypto.dart';
+import 'dart:convert';
 
 class AuthService {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final _db = FirebaseFirestore.instance;
 
-  // 🔑 Standard Login for both Owner and Tenant
-  Future<User?> login(String email, String password) async {
-    try {
-      UserCredential result = await _auth.signInWithEmailAndPassword(
-          email: email.trim(), password: password.trim());
-      return result.user;
-    } catch (e) {
-      throw Exception(e.toString());
-    }
+  /// 🔐 HASH PASSWORD using SHA-256
+  String _hashPassword(String password) {
+    final bytes = utf8.encode(password);
+    final digest = sha256.convert(bytes);
+    return digest.toString();
   }
 
-  // 🏠 Owner creates Tenant Account
-  // This uses a 'SecondaryApp' instance so the Owner stays logged in
-  Future<void> createTenantAccount({
-    required String email,
-    required String tempPassword,
+  /// REGISTER
+  Future<String?> register({
     required String name,
-    required String roomNumber,
-    required String bedNumber,
+    required String phone,
+    required String password,
+    required String role,
   }) async {
     try {
-      // 1. Initialize a temporary secondary app
-      FirebaseApp secondaryApp = await Firebase.initializeApp(
-        name: 'TenantCreationApp',
-        options: Firebase.app().options,
-      );
+      final existing = await _db
+          .collection('users')
+          .where('phone', isEqualTo: phone)
+          .get();
 
-      // 2. Create the Auth User using the secondary app instance
-      UserCredential result = await FirebaseAuth.instanceFor(app: secondaryApp)
-          .createUserWithEmailAndPassword(
-        email: email.trim(),
-        password: tempPassword.trim(),
-      );
-
-      // 3. Store the Tenant details in the main Firestore 'users' collection
-      if (result.user != null) {
-        await _firestore.collection('users').doc(result.user!.uid).set({
-          'uid': result.user!.uid,
-          'name': name.trim(),
-          'email': email.trim(),
-          'role': 'tenant',
-          'roomNumber': roomNumber.trim(),
-          'bedNumber': bedNumber.trim(),
-          'profileCompleted': false, // This triggers the password reset/setup for tenant
-          'createdAt': FieldValue.serverTimestamp(),
-        });
+      if (existing.docs.isNotEmpty) {
+        return "User already exists";
       }
 
-      // 4. Clean up by deleting the secondary app instance
-      await secondaryApp.delete();
-    } on FirebaseAuthException catch (e) {
-      throw Exception(e.message ?? "Failed to create tenant account");
+      await _db.collection('users').add({
+        "name": name,
+        "phone": phone,
+        "password": _hashPassword(password), // 🔐 store hashed
+        "role": role,
+        "createdAt": Timestamp.now(),
+      });
+
+      return null;
     } catch (e) {
-      throw Exception("An unexpected error occurred: $e");
+      return e.toString();
     }
   }
 
-  // 📝 Tenant Completes Profile (Changes password on first login)
-  Future<void> completeTenantProfile({
-    required String newPassword,
+  /// LOGIN
+  Future<Map<String, dynamic>?> login({
+    required String phone,
+    required String password,
   }) async {
     try {
-      User? user = _auth.currentUser;
-      if (user != null) {
-        // Update the password in Firebase Auth
-        await user.updatePassword(newPassword.trim());
-        
-        // Update the flag in Firestore so they can access the dashboard next time
-        await _firestore.collection('users').doc(user.uid).update({
-          'profileCompleted': true,
-        });
-      }
+      final result = await _db
+          .collection('users')
+          .where('phone', isEqualTo: phone)
+          .where('password', isEqualTo: _hashPassword(password)) // 🔐 compare hashed
+          .get();
+
+      if (result.docs.isEmpty) return null;
+
+      return result.docs.first.data();
     } catch (e) {
-      throw Exception("Profile completion failed: ${e.toString()}");
+      return null;
     }
-  }
-
-  // 👤 Fetch User Role and Metadata
-  Future<DocumentSnapshot> getUserData(String uid) async {
-    return await _firestore.collection('users').doc(uid).get();
-  }
-
-  // 📧 Forgot Password logic
-  Future<void> sendPasswordReset(String email) async {
-    try {
-      await _auth.sendPasswordResetEmail(email: email.trim());
-    } catch (e) {
-      throw Exception(e.toString());
-    }
-  }
-
-  // 🚪 Sign Out
-  Future<void> signOut() async {
-    await _auth.signOut();
   }
 }

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import '../../../core/theme/app_colors.dart';
+import '../../../core/services/session_service.dart';
+import '../../auth/screens/login_screen.dart';
 import 'tenant_home.dart';
 import 'meal_screen.dart';
-import 'profile_screen.dart';
-import 'complaints_screen.dart';
+import 'complaint_screen.dart';
+import 'profile_screen.dart'; // ✅ new import
 
 class TenantDashboard extends StatefulWidget {
   const TenantDashboard({super.key});
@@ -13,47 +14,52 @@ class TenantDashboard extends StatefulWidget {
 }
 
 class _TenantDashboardState extends State<TenantDashboard> {
-  int _selectedIndex = 0;
+  int index = 0;
 
-  // Screens corresponding to each BottomNavBar item
-  final List<Widget> _screens = [
-    const TenantHomeScreen(),
-    const MealScreen(),
-    const ComplaintsScreen(),
-    const ProfileScreen(),
+  final screens = const [
+    TenantHome(),
+    MealScreen(),
+    TenantComplaintsScreen(),
+    ProfileScreen(), // ✅ new tab
   ];
+
+  void logout() async {
+    await SessionService().clearSession();
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: _screens,
-      ),
+      body: screens[index],
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: (index) => setState(() => _selectedIndex = index),
         type: BottomNavigationBarType.fixed,
-        selectedItemColor: AppColors.primary,
-        unselectedItemColor: Colors.grey,
+        currentIndex: index,
         showUnselectedLabels: true,
+        selectedItemColor: const Color(0xFF6C5DD3),
+        selectedFontSize: 12,
+        unselectedFontSize: 11,
+        onTap: (i) => setState(() => index = i),
         items: const [
           BottomNavigationBarItem(
-            icon: Icon(Icons.home_rounded), 
-            activeIcon: Icon(Icons.home_filled),
-            label: "Home"
+            icon: Icon(Icons.home),
+            label: "Home",
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.restaurant_rounded), 
-            label: "Meals"
+            icon: Icon(Icons.restaurant_menu),
+            label: "Meals",
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.report_problem_rounded), 
-            label: "Issues"
+            icon: Icon(Icons.build),
+            label: "Complaints",
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_rounded), 
-            label: "Profile"
+          BottomNavigationBarItem( // ✅ new tab
+            icon: Icon(Icons.person),
+            label: "Profile",
           ),
         ],
       ),
